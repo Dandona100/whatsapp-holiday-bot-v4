@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+*.log
+logs/
+server/cache/
+server/temp/
+server/.wwebjs_auth/
+server/.wwebjs_cache/
+.DS_Store
+Thumbs.db

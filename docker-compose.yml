@@ -1,0 +1,42 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: always
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    restart: always
+    depends_on:
+      - mysql
+    ports:
+      - "3001:3001"
+    volumes:
+      - whatsapp_session:/app/.wwebjs_auth
+      - image_cache:/app/cache
+    env_file: .env
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+
+volumes:
+  mysql_data:
+  whatsapp_session:
+  image_cache:
