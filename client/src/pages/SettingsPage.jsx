@@ -536,6 +536,28 @@ export default function SettingsPage() {
           Creates a snapshot of all contacts, groups, templates, and settings.
         </p>
       </Section>
+
+      {/* Version Footer */}
+      <div className="text-center text-xs text-gray-400 pt-4 pb-2 border-t border-gray-100">
+        WhatsApp Holiday Bot v1.3.0 | Built with{' '}
+        <a
+          href="https://claude.ai/code"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-500 hover:text-gray-700 underline"
+        >
+          Claude Code
+        </a>
+        {' '}|{' '}
+        <a
+          href="https://github.com/Dandona100/whatsapp-holiday-bot-v4"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-500 hover:text-gray-700 underline"
+        >
+          GitHub
+        </a>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Search, Plus, Upload, Trash2, Edit2, X, Check,
+  Search, Plus, Upload, Trash2, Edit2, X, Check, Send, Loader2,
 } from 'lucide-react';
 import api from '../hooks/useApi';
 import toast from 'react-hot-toast';
@@ -231,6 +231,127 @@ function ImportModal({ onClose, onImported }) {
   );
 }
 
+function SendMessageModal({ contact, onClose }) {
+  const [message, setMessage] = useState('');
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+
+  useEffect(() => {
+    async function fetchTemplates() {
+      try {
+        const res = await api.get('/templates');
+        setTemplates(res.data.templates || res.data || []);
+      } catch {
+        // silently fail, user can still type message
+      } finally {
+        setLoadingTemplates(false);
+      }
+    }
+    fetchTemplates();
+  }, []);
+
+  const handleTemplateChange = (id) => {
+    setSelectedTemplate(id);
+    const tpl = templates.find((t) => t.id === id);
+    if (tpl?.messageText) setMessage(tpl.messageText);
+  };
+
+  const handleSend = async () => {
+    if (!message.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+    setSending(true);
+    try {
+      await api.post('/whatsapp/send', { phone: contact.phone, message });
+      toast.success(`Message sent to ${contact.displayName}`);
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.response?.data?.message || 'Send failed');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-800">Send Message</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+            <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+              {contact.displayName} ({contact.phone})
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Template</label>
+            {loadingTemplates ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                <Loader2 size={14} className="animate-spin" /> Loading templates...
+              </div>
+            ) : (
+              <select
+                value={selectedTemplate}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+              >
+                <option value="">No template</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+              rows={4}
+              placeholder="Type your message..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending || !message.trim()}
+            className="flex items-center gap-2 px-4 py-2 bg-whatsapp text-white rounded-lg hover:bg-whatsapp-dark transition-colors disabled:opacity-50"
+          >
+            {sending ? (
+              <>
+                <Loader2 size={16} className="animate-spin" /> Sending...
+              </>
+            ) : (
+              <>
+                <Send size={16} /> Send
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -244,6 +365,7 @@ export default function ContactsPage() {
   const [showImport, setShowImport] = useState(false);
   const [editingNameId, setEditingNameId] = useState(null);
   const [editingNameValue, setEditingNameValue] = useState('');
+  const [sendContact, setSendContact] = useState(null);
   const limit = 500;
 
   const fetchContacts = useCallback(async (append = false) => {
@@ -499,6 +621,13 @@ export default function ContactsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <button
+                          onClick={() => setSendContact(c)}
+                          className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          title="Send message"
+                        >
+                          <Send size={14} />
+                        </button>
+                        <button
                           onClick={() => { setEditContact(c); setShowAdd(true); }}
                           className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                         >
@@ -544,6 +673,9 @@ export default function ContactsPage() {
       )}
       {showImport && (
         <ImportModal onClose={() => setShowImport(false)} onImported={() => { setOffset(0); fetchContacts(false); }} />
+      )}
+      {sendContact && (
+        <SendMessageModal contact={sendContact} onClose={() => setSendContact(null)} />
       )}
     </div>
   );

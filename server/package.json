@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-holiday-bot-server",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "WhatsApp Holiday Greeting Bot — Server",
   "main": "src/app.js",
   "scripts": {

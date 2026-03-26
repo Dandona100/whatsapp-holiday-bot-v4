@@ -3,7 +3,8 @@ import {
   HelpCircle, ChevronDown, ChevronRight, Globe, Rocket, MessageCircle,
   Users, FileText, Send, Palette, LayoutDashboard, Calendar, Wrench,
   Terminal, Clock, Reply, CheckCircle, Settings, BarChart3, FolderOpen,
-  Zap, AlertTriangle, RefreshCw, Image, Upload,
+  Zap, AlertTriangle, RefreshCw, Image, Upload, Code, History, Monitor,
+  ExternalLink, Key,
 } from 'lucide-react';
 
 const content = {
@@ -194,6 +195,108 @@ const content = {
         ),
       },
       {
+        id: 'canva-setup',
+        icon: Key,
+        title: 'הגדרת קנבה (למפתחים)',
+        content: (
+          <div className="space-y-4" dir="rtl">
+            <ol className="space-y-3 text-sm">
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">1</span>
+                <span>היכנסו ל-<a href="https://www.canva.com/developers" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline">canva.com/developers</a></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">2</span>
+                <span>צרו <strong>Connect API integration</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">3</span>
+                <span>העתיקו <strong>Client ID</strong> ו-<strong>Client Secret</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">4</span>
+                <span>ב-Authentication, הגדירו redirect URL:</span>
+              </li>
+            </ol>
+            <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-sm font-mono overflow-x-auto" dir="ltr">
+              http://127.0.0.1:3001/api/templates/canva/auth/callback
+            </code>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Scopes נדרשים:</p>
+              <div className="flex flex-wrap gap-2">
+                {['design:content:read', 'design:content:write', 'design:meta:read', 'asset:read', 'asset:write', 'brandtemplate:content:read', 'brandtemplate:meta:read'].map((scope) => (
+                  <span key={scope} className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-mono">{scope}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">הוסיפו לקובץ <code className="bg-gray-100 px-1 rounded">.env</code>:</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-sm font-mono overflow-x-auto" dir="ltr">
+{`CANVA_CLIENT_ID=your_client_id
+CANVA_CLIENT_SECRET=your_client_secret
+CANVA_REDIRECT_URI=http://127.0.0.1:3001/api/templates/canva/auth/callback`}
+              </code>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
+              לסיום: Settings &rarr; Connect Canva
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'how-to-run',
+        icon: Terminal,
+        title: 'איך להריץ',
+        content: (
+          <div className="space-y-4" dir="rtl">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">דרישות מוקדמות:</p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">Node.js 20+</span>
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">Docker (MySQL)</span>
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">npm</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">שלב 1: הפעלת MySQL</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto" dir="ltr">
+                docker run -d --name whatsapp-bot-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=botpass123 -e MYSQL_DATABASE=whatsapp_holiday_bot -e MYSQL_USER=whatsapp_bot -e MYSQL_PASSWORD=botpass123 mysql:8.0
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">שלב 2: התקנת תלויות</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto" dir="ltr">
+{`cd server && npm install
+cd client && npm install`}
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">שלב 3: הגדרת קובץ סביבה</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto" dir="ltr">
+                cp .env.example .env
+              </code>
+              <p className="text-xs text-gray-500 mt-1">מלאו את הערכים בקובץ .env</p>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">שלב 4: הפעלה</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto" dir="ltr">
+                ./start.sh
+              </code>
+              <p className="text-xs text-gray-500 mt-1">או ידנית:</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto mt-1" dir="ltr">
+{`# Terminal 1
+cd server && node src/app.js
+# Terminal 2
+cd client && npx vite --port 3000`}
+              </code>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              פתחו <strong>http://localhost:3000</strong> — התחברו עם <strong>admin / admin123</strong>
+            </div>
+          </div>
+        ),
+      },
+      {
         id: 'pages-overview',
         icon: LayoutDashboard,
         title: 'סקירת עמודים',
@@ -268,13 +371,73 @@ const content = {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">ווטסאפ תקוע על "Connecting"</td><td className="py-2 px-3">הפעילו מחדש את הבוט, חכו 30 שניות ל-QR</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">ווטסאפ לא מתחבר</td><td className="py-2 px-3">מחקו session: <code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">rm -rf ~/.whatsapp-bot-session</code> והפעילו מחדש</td></tr>
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">QR לא מופיע</td><td className="py-2 px-3">סגרו תהליכי Chrome: <code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">pkill -f "Google Chrome for Testing"</code></td></tr>
-                <tr className="hover:bg-gray-50"><td className="py-2 px-3">שגיאת "Rate limited"</td><td className="py-2 px-3">חכו 15 דקות, או הפעילו מחדש</td></tr>
-                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Canva "Unauthorized"</td><td className="py-2 px-3">Settings &rarr; Reconnect Canva</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">שגיאת "Rate limited"</td><td className="py-2 px-3">הגדילו מגבלה ב-Settings או חכו 15 דקות</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">MySQL לא רץ</td><td className="py-2 px-3"><code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">docker start whatsapp-bot-mysql</code></td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">פורט תפוס</td><td className="py-2 px-3"><code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">lsof -ti:3001 | xargs kill -9</code></td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Canva "Unauthorized" / טוקן פג</td><td className="py-2 px-3">Settings &rarr; Disconnect &rarr; Connect Canva</td></tr>
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">תצוגה מקדימה לא נטענת</td><td className="py-2 px-3">ודאו שלתבנית יש תמונה מועלית</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Node crash "Library not loaded"</td><td className="py-2 px-3"><code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">brew upgrade node@22</code> או <code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">brew reinstall simdjson</code></td></tr>
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">הבוט לא עולה</td><td className="py-2 px-3">בדקו MySQL: <code className="bg-gray-100 px-1 rounded text-xs" dir="ltr">docker start whatsapp-bot-mysql</code></td></tr>
               </tbody>
             </table>
+          </div>
+        ),
+      },
+      {
+        id: 'developer-info',
+        icon: Code,
+        title: 'פרטי מפתח',
+        content: (
+          <div className="space-y-4" dir="rtl">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">סטאק טכנולוגי:</p>
+              <div className="flex flex-wrap gap-2">
+                {['Node.js', 'Express', 'MySQL (Knex)', 'whatsapp-web.js', 'React', 'Vite', 'Tailwind CSS'].map((tech) => (
+                  <span key={tech} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">{tech}</span>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <ExternalLink size={14} className="text-gray-400" />
+                <span className="text-gray-600">GitHub:</span>
+                <a href="https://github.com/Dandona100/whatsapp-holiday-bot-v4" target="_blank" rel="noopener noreferrer" className="text-whatsapp underline">whatsapp-holiday-bot-v4</a>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">רישיון:</span>
+                <span className="font-medium">MIT</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">מפתח:</span>
+                <span className="font-medium">Dani Bshiri</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">נבנה עם:</span>
+                <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline font-medium">Claude Code (Anthropic)</a>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'version-history',
+        icon: History,
+        title: 'היסטוריית גרסאות',
+        content: (
+          <div className="space-y-3" dir="rtl">
+            {[
+              { version: 'v1.3.0', desc: 'עמוד מדריך, תצוגה מקדימה לתבניות, שליחה מאנשי קשר, תיעוד למפתחים' },
+              { version: 'v1.2.0', desc: 'Canva OAuth, גלישה בעיצובי Canva, Claude MCP provider' },
+              { version: 'v1.1.0', desc: 'אינטגרציית Canva, מענה אוטומטי עם אישור אדמין, דוחות' },
+              { version: 'v1.0.0', desc: 'גרסה ראשונה: חיבור ווטסאפ, אנשי קשר, קבוצות, תזמון, ממשק בסיסי' },
+            ].map((item) => (
+              <div key={item.version} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="px-2 py-0.5 bg-whatsapp/10 text-whatsapp rounded text-xs font-mono font-bold shrink-0">{item.version}</span>
+                <span className="text-sm text-gray-700">{item.desc}</span>
+              </div>
+            ))}
           </div>
         ),
       },
@@ -467,6 +630,108 @@ const content = {
         ),
       },
       {
+        id: 'canva-setup',
+        icon: Key,
+        title: 'Canva Setup (Developers)',
+        content: (
+          <div className="space-y-4">
+            <ol className="space-y-3 text-sm">
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">1</span>
+                <span>Go to <a href="https://www.canva.com/developers" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline">canva.com/developers</a></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">2</span>
+                <span>Create a <strong>Connect API integration</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">3</span>
+                <span>Copy <strong>Client ID</strong> and <strong>Client Secret</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-600 text-sm font-bold shrink-0">4</span>
+                <span>In Authentication, set redirect URL:</span>
+              </li>
+            </ol>
+            <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-sm font-mono overflow-x-auto">
+              http://127.0.0.1:3001/api/templates/canva/auth/callback
+            </code>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Required Scopes:</p>
+              <div className="flex flex-wrap gap-2">
+                {['design:content:read', 'design:content:write', 'design:meta:read', 'asset:read', 'asset:write', 'brandtemplate:content:read', 'brandtemplate:meta:read'].map((scope) => (
+                  <span key={scope} className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-mono">{scope}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Add to <code className="bg-gray-100 px-1 rounded">.env</code> file:</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-sm font-mono overflow-x-auto">
+{`CANVA_CLIENT_ID=your_client_id
+CANVA_CLIENT_SECRET=your_client_secret
+CANVA_REDIRECT_URI=http://127.0.0.1:3001/api/templates/canva/auth/callback`}
+              </code>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
+              Finally: Settings &rarr; Connect Canva
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'how-to-run',
+        icon: Terminal,
+        title: 'How to Run',
+        content: (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Prerequisites:</p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">Node.js 20+</span>
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">Docker (for MySQL)</span>
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">npm</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">Step 1: Start MySQL</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto">
+                docker run -d --name whatsapp-bot-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=botpass123 -e MYSQL_DATABASE=whatsapp_holiday_bot -e MYSQL_USER=whatsapp_bot -e MYSQL_PASSWORD=botpass123 mysql:8.0
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">Step 2: Install dependencies</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto">
+{`cd server && npm install
+cd client && npm install`}
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">Step 3: Configure environment</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto">
+                cp .env.example .env
+              </code>
+              <p className="text-xs text-gray-500 mt-1">Fill in the values in the .env file</p>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">Step 4: Run</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto">
+                ./start.sh
+              </code>
+              <p className="text-xs text-gray-500 mt-1">Or manually:</p>
+              <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto mt-1">
+{`# Terminal 1
+cd server && node src/app.js
+# Terminal 2
+cd client && npx vite --port 3000`}
+              </code>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              Open <strong>http://localhost:3000</strong> — login with <strong>admin / admin123</strong>
+            </div>
+          </div>
+        ),
+      },
+      {
         id: 'pages-overview',
         icon: LayoutDashboard,
         title: 'Pages Overview',
@@ -541,13 +806,73 @@ const content = {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">WhatsApp stuck on "Connecting"</td><td className="py-2 px-3">Restart bot, wait 30s for QR</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">WhatsApp won't connect</td><td className="py-2 px-3">Delete session: <code className="bg-gray-100 px-1 rounded text-xs">rm -rf ~/.whatsapp-bot-session</code> and restart</td></tr>
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">QR code not appearing</td><td className="py-2 px-3">Kill Chrome processes: <code className="bg-gray-100 px-1 rounded text-xs">pkill -f "Google Chrome for Testing"</code></td></tr>
-                <tr className="hover:bg-gray-50"><td className="py-2 px-3">"Rate limited" errors</td><td className="py-2 px-3">Wait 15 minutes, or restart bot</td></tr>
-                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Canva "Unauthorized"</td><td className="py-2 px-3">Settings &rarr; Reconnect Canva</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">"Rate limited" errors</td><td className="py-2 px-3">Increase limit in Settings or wait 15 minutes</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">MySQL not running</td><td className="py-2 px-3"><code className="bg-gray-100 px-1 rounded text-xs">docker start whatsapp-bot-mysql</code></td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Port in use</td><td className="py-2 px-3"><code className="bg-gray-100 px-1 rounded text-xs">lsof -ti:3001 | xargs kill -9</code></td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Canva token expired</td><td className="py-2 px-3">Settings &rarr; Disconnect &rarr; Connect Canva</td></tr>
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">Template preview not loading</td><td className="py-2 px-3">Make sure template has an uploaded image</td></tr>
+                <tr className="hover:bg-gray-50"><td className="py-2 px-3">Node crash "Library not loaded"</td><td className="py-2 px-3"><code className="bg-gray-100 px-1 rounded text-xs">brew upgrade node@22</code> or <code className="bg-gray-100 px-1 rounded text-xs">brew reinstall simdjson</code></td></tr>
                 <tr className="hover:bg-gray-50"><td className="py-2 px-3">Bot won't start</td><td className="py-2 px-3">Check MySQL: <code className="bg-gray-100 px-1 rounded text-xs">docker start whatsapp-bot-mysql</code></td></tr>
               </tbody>
             </table>
+          </div>
+        ),
+      },
+      {
+        id: 'developer-info',
+        icon: Code,
+        title: 'Developer Info',
+        content: (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Tech Stack:</p>
+              <div className="flex flex-wrap gap-2">
+                {['Node.js', 'Express', 'MySQL (Knex)', 'whatsapp-web.js', 'React', 'Vite', 'Tailwind CSS'].map((tech) => (
+                  <span key={tech} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">{tech}</span>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <ExternalLink size={14} className="text-gray-400" />
+                <span className="text-gray-600">GitHub:</span>
+                <a href="https://github.com/Dandona100/whatsapp-holiday-bot-v4" target="_blank" rel="noopener noreferrer" className="text-whatsapp underline">whatsapp-holiday-bot-v4</a>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">License:</span>
+                <span className="font-medium">MIT</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">Author:</span>
+                <span className="font-medium">Dani Bshiri</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">Built with:</span>
+                <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline font-medium">Claude Code (Anthropic)</a>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'version-history',
+        icon: History,
+        title: 'Version History',
+        content: (
+          <div className="space-y-3">
+            {[
+              { version: 'v1.3.0', desc: 'Guide page, template preview, send from contacts, developer docs' },
+              { version: 'v1.2.0', desc: 'Canva OAuth, Browse Canva designs, Claude MCP provider' },
+              { version: 'v1.1.0', desc: 'Canva integration, auto-reply with admin approval, reports' },
+              { version: 'v1.0.0', desc: 'Initial release: WhatsApp connection, contacts, groups, scheduler, basic UI' },
+            ].map((item) => (
+              <div key={item.version} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="px-2 py-0.5 bg-whatsapp/10 text-whatsapp rounded text-xs font-mono font-bold shrink-0">{item.version}</span>
+                <span className="text-sm text-gray-700">{item.desc}</span>
+              </div>
+            ))}
           </div>
         ),
       },

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Send,
   Users,
@@ -10,12 +10,86 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  Plus,
+  Phone,
+  X,
 } from 'lucide-react';
 import api from '../hooks/useApi';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
 const PAGE_SIZE = 100;
+
+function QuickAddContactModal({ onClose, onAdded }) {
+  const [phone, setPhone] = useState('+972');
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!phone.trim()) {
+      toast.error('Phone number is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.post('/contacts', { phone: phone.trim(), displayName: name.trim() || phone.trim() });
+      toast.success('Contact added');
+      onAdded(res.data.contact || res.data);
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add contact');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-800">Add Contact</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+972..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Display name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-whatsapp text-white rounded-lg hover:bg-whatsapp-dark text-sm disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Add'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SendNowPage() {
   // Data
@@ -32,6 +106,15 @@ export default function SendNowPage() {
   // Search
   const [contactSearch, setContactSearch] = useState('');
   const [groupSearch, setGroupSearch] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef(null);
+
+  // Manual phone input
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualRecipients, setManualRecipients] = useState([]); // { id, phone, displayName }
+
+  // Quick add modal
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // Selection
   const [selectedContacts, setSelectedContacts] = useState([]);
@@ -49,12 +132,12 @@ export default function SendNowPage() {
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(null);
 
-  const fetchContacts = useCallback(async (page = 1, append = false) => {
+  const fetchContacts = useCallback(async (page = 1, append = false, search = '') => {
     try {
       if (page > 1) setLoadingMore(true);
-      const res = await api.get('/contacts', {
-        params: { limit: PAGE_SIZE, page },
-      });
+      const params = { limit: PAGE_SIZE, page };
+      if (search.trim()) params.search = search.trim();
+      const res = await api.get('/contacts', { params });
       const data = res.data.contacts || res.data || [];
       const pagination = res.data.pagination;
 
@@ -74,6 +157,7 @@ export default function SendNowPage() {
       toast.error('Failed to load contacts');
     } finally {
       setLoadingMore(false);
+      setSearchLoading(false);
     }
   }, []);
 
@@ -98,21 +182,39 @@ export default function SendNowPage() {
     fetchData();
   }, [fetchContacts]);
 
-  const handleLoadMore = () => {
-    fetchContacts(contactPage + 1, true);
+  // Debounced server search for contacts
+  const handleContactSearchChange = (value) => {
+    setContactSearch(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setSearchLoading(true);
+      fetchContacts(1, false, value);
+    }, 500);
   };
 
-  // Filtered lists
-  const filteredContacts = useMemo(() => {
-    if (!contactSearch.trim()) return contacts;
-    const q = contactSearch.toLowerCase();
-    return contacts.filter(
-      (c) =>
-        (c.displayName || c.display_name || '').toLowerCase().includes(q) ||
-        (c.nameOnDesign || c.name_on_design || '').toLowerCase().includes(q) ||
-        (c.phone || '').includes(q)
-    );
-  }, [contacts, contactSearch]);
+  const handleLoadMore = () => {
+    fetchContacts(contactPage + 1, true, contactSearch);
+  };
+
+  // Add manual phone number to recipients
+  const handleAddManualPhone = () => {
+    const phone = manualPhone.trim();
+    if (!phone) return;
+    if (manualRecipients.some((r) => r.phone === phone)) {
+      toast.error('Phone number already added');
+      return;
+    }
+    const tempId = `manual_${phone}`;
+    setManualRecipients((prev) => [...prev, { id: tempId, phone, displayName: phone }]);
+    setManualPhone('');
+  };
+
+  const removeManualRecipient = (id) => {
+    setManualRecipients((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Filtered lists (contacts come from server now, no client filter needed)
+  const filteredContacts = contacts;
 
   const filteredGroups = useMemo(() => {
     if (!groupSearch.trim()) return groups;
@@ -189,13 +291,18 @@ export default function SendNowPage() {
 
   // Compute total recipients estimate
   const totalRecipients = useMemo(() => {
-    let count = selectedContacts.length;
+    let count = selectedContacts.length + manualRecipients.length;
     for (const gId of selectedGroups) {
       const g = groups.find((gr) => gr.id === gId);
       count += g?.contactCount || 0;
     }
     return count;
-  }, [selectedContacts, selectedGroups, groups]);
+  }, [selectedContacts, selectedGroups, groups, manualRecipients]);
+
+  // Handle quick add callback
+  const handleQuickAddContact = (contact) => {
+    setContacts((prev) => [contact, ...prev]);
+  };
 
   // Send handler
   const handleSend = async () => {
@@ -203,7 +310,7 @@ export default function SendNowPage() {
       toast.error('Please enter a message or select a template');
       return;
     }
-    if (selectedContacts.length === 0 && selectedGroups.length === 0) {
+    if (selectedContacts.length === 0 && selectedGroups.length === 0 && manualRecipients.length === 0) {
       toast.error('Please select at least one recipient');
       return;
     }
@@ -214,6 +321,9 @@ export default function SendNowPage() {
     try {
       // Collect all contact IDs: selected + contacts from selected groups
       let allContactIds = [...selectedContacts];
+
+      // Collect manual phone numbers
+      const manualPhones = manualRecipients.map((r) => r.phone);
 
       if (selectedGroups.length > 0) {
         for (const gId of selectedGroups) {
@@ -227,18 +337,26 @@ export default function SendNowPage() {
         }
       }
 
-      if (allContactIds.length === 0) {
+      if (allContactIds.length === 0 && manualPhones.length === 0) {
         toast.error('No contacts found for selected recipients');
         setSending(false);
         return;
       }
 
-      setProgress({ sent: 0, total: allContactIds.length, failed: 0 });
+      setProgress({ sent: 0, total: allContactIds.length + manualPhones.length, failed: 0 });
 
-      const res = await api.post('/whatsapp/send-bulk', {
+      const payload = {
         contactIds: allContactIds.map(String),
         message: message || 'שבת שלום',
-      });
+      };
+      if (globalTemplate) {
+        payload.templateId = Number(globalTemplate);
+      }
+      if (manualPhones.length > 0) {
+        payload.phones = manualPhones;
+      }
+
+      const res = await api.post('/whatsapp/send-bulk', payload);
 
       const sent = res.data.sent || 0;
       const failed = res.data.failed || 0;
@@ -276,6 +394,48 @@ export default function SendNowPage() {
             Recipients
           </h3>
 
+          {/* Manual Phone Input */}
+          <div className="mb-5 border border-gray-200 rounded-lg p-3">
+            <h4 className="text-sm font-medium text-gray-700 flex items-center gap-1.5 mb-2">
+              <Phone size={14} />
+              Send to phone number
+            </h4>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualPhone}
+                onChange={(e) => setManualPhone(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddManualPhone(); } }}
+                placeholder="+972..."
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none"
+              />
+              <button
+                onClick={handleAddManualPhone}
+                className="px-3 py-2 bg-whatsapp text-white rounded-lg hover:bg-whatsapp-dark text-sm flex items-center gap-1"
+              >
+                <Plus size={14} /> Add
+              </button>
+            </div>
+            {manualRecipients.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {manualRecipients.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between px-2 py-1 bg-gray-50 rounded text-sm">
+                    <span className="text-gray-700">{r.phone}</span>
+                    <button
+                      onClick={() => removeManualRecipient(r.id)}
+                      className="p-0.5 text-gray-400 hover:text-red-500"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                <p className="text-xs text-gray-400">
+                  {manualRecipients.length} manual number(s)
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Contacts Section */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -283,15 +443,23 @@ export default function SendNowPage() {
                 <Users size={14} />
                 Contacts
               </h4>
-              <button
-                onClick={selectAllFilteredContacts}
-                className="text-xs text-whatsapp hover:underline"
-              >
-                {filteredContacts.length > 0 &&
-                filteredContacts.every((c) => selectedContacts.includes(c.id))
-                  ? 'Deselect All'
-                  : 'Select All'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowQuickAdd(true)}
+                  className="text-xs text-whatsapp hover:underline flex items-center gap-0.5"
+                >
+                  <Plus size={12} /> Add
+                </button>
+                <button
+                  onClick={selectAllFilteredContacts}
+                  className="text-xs text-whatsapp hover:underline"
+                >
+                  {filteredContacts.length > 0 &&
+                  filteredContacts.every((c) => selectedContacts.includes(c.id))
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </button>
+              </div>
             </div>
 
             <div className="relative mb-2">
@@ -302,10 +470,16 @@ export default function SendNowPage() {
               <input
                 type="text"
                 value={contactSearch}
-                onChange={(e) => setContactSearch(e.target.value)}
+                onChange={(e) => handleContactSearchChange(e.target.value)}
                 placeholder="Search contacts..."
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none"
+                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none"
               />
+              {searchLoading && (
+                <Loader2
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400"
+                />
+              )}
             </div>
 
             <div className="max-h-48 overflow-y-auto space-y-0.5">
@@ -336,7 +510,7 @@ export default function SendNowPage() {
               )}
             </div>
 
-            {hasMoreContacts && (
+            {hasMoreContacts && !contactSearch.trim() && (
               <button
                 onClick={handleLoadMore}
                 disabled={loadingMore}
@@ -521,6 +695,14 @@ export default function SendNowPage() {
               Assignment Summary
             </p>
             <ul className="text-xs text-gray-500 space-y-0.5">
+              {manualRecipients.length > 0 && (
+                <li>
+                  {manualRecipients.length} manual phone number(s) --{' '}
+                  {globalTemplate
+                    ? getTemplateName(globalTemplate)
+                    : 'Custom message'}
+                </li>
+              )}
               {selectedContacts.length > 0 && (
                 <li>
                   {selectedContacts.length} individual contact(s) --{' '}
@@ -539,7 +721,7 @@ export default function SendNowPage() {
                   </li>
                 );
               })}
-              {selectedContacts.length === 0 && selectedGroups.length === 0 && (
+              {selectedContacts.length === 0 && selectedGroups.length === 0 && manualRecipients.length === 0 && (
                 <li className="text-gray-400">No recipients selected</li>
               )}
             </ul>
@@ -663,6 +845,14 @@ export default function SendNowPage() {
           </div>
         </div>
       </div>
+
+      {/* Quick Add Contact Modal */}
+      {showQuickAdd && (
+        <QuickAddContactModal
+          onClose={() => setShowQuickAdd(false)}
+          onAdded={handleQuickAddContact}
+        />
+      )}
     </div>
   );
 }

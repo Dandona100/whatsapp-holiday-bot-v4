@@ -22,6 +22,8 @@ const sendBulkSchema = Joi.object({
   contactIds: Joi.array().items(Joi.string()).min(1).required(),
   message: Joi.string().required(),
   imagePath: Joi.string().optional(),
+  templateId: Joi.number().optional(),
+  phones: Joi.array().items(Joi.string()).optional(),
 });
 
 // --- Routes ---
@@ -289,20 +291,39 @@ router.post('/send', validate(sendSchema), async (req, res, next) => {
 // POST /send-bulk
 router.post('/send-bulk', validate(sendBulkSchema), async (req, res, next) => {
   try {
-    const { contactIds, message, imagePath } = req.body;
+    const { contactIds, message, imagePath, templateId, phones } = req.body;
 
+    // Get contacts from IDs
     const contacts = await db('contacts')
       .whereIn('id', contactIds.map(Number))
       .where({ active: true });
 
+    // Add manual phone numbers as temporary contacts
+    if (phones && phones.length > 0) {
+      for (const phone of phones) {
+        const existing = contacts.find((c) => c.phone === phone);
+        if (!existing) {
+          contacts.push({ id: null, phone, display_name: phone, name_on_design: phone });
+        }
+      }
+    }
+
+    // Load template if specified
+    let template = null;
+    const canvaAdapter = req.app.get('canvaAdapter');
+    if (templateId) {
+      template = await db('templates').where({ id: templateId }).first();
+    }
+
     const results = { sent: 0, failed: 0, errors: [] };
 
     for (const contact of contacts) {
+      const nameOnDesign = contact.name_on_design || contact.display_name || contact.phone;
       const logData = {
         contact_id: contact.id,
         direction: 'outgoing',
         trigger_type: 'manual',
-        message_type: imagePath ? 'image' : 'text',
+        message_type: template ? 'image_personalized' : (imagePath ? 'image' : 'text'),
         status: 'sending',
         caption: message,
         image_path: imagePath || null,
@@ -310,7 +331,15 @@ router.post('/send-bulk', validate(sendBulkSchema), async (req, res, next) => {
 
       try {
         const chatId = contact.phone.replace('+', '') + '@c.us';
-        if (imagePath) {
+
+        if (template && canvaAdapter) {
+          // Personalize template with contact's name
+          logger.info(`Personalizing template ${template.id} for "${nameOnDesign}"`);
+          const result = await canvaAdapter.personalize(template.id, nameOnDesign, template.event_type);
+          logData.image_path = result.imagePath;
+          logData.canva_source = result.source;
+          await whatsappService.sendImage(chatId, result.imagePath, message);
+        } else if (imagePath) {
           await whatsappService.sendImage(chatId, imagePath, message);
         } else {
           await whatsappService.sendMessage(chatId, message);
