@@ -11,6 +11,10 @@ import {
   Upload,
   Loader2,
   Type,
+  Palette,
+  ExternalLink,
+  ChevronDown,
+  Download,
 } from 'lucide-react';
 import api from '../hooks/useApi';
 import toast from 'react-hot-toast';
@@ -28,6 +32,19 @@ const EVENT_TYPES = [
   'custom',
 ];
 
+const CANVA_EVENT_TYPES = [
+  'shabbat',
+  'rosh_hashana',
+  'yom_kippur',
+  'sukkot',
+  'simchat_torah',
+  'chanukah',
+  'purim',
+  'pesach',
+  'yom_haatzmaut',
+  'shavuot',
+];
+
 const eventColors = {
   shabbat: 'bg-blue-100 text-blue-700',
   rosh_hashana: 'bg-yellow-100 text-yellow-700',
@@ -39,6 +56,8 @@ const eventColors = {
   shavuot: 'bg-teal-100 text-teal-700',
   independence_day: 'bg-blue-100 text-blue-700',
   custom: 'bg-purple-100 text-purple-700',
+  simchat_torah: 'bg-emerald-100 text-emerald-700',
+  yom_haatzmaut: 'bg-sky-100 text-sky-700',
 };
 
 const formatEventType = (t) =>
@@ -343,19 +362,8 @@ function PreviewModal({ template, onClose }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function fetchPreview() {
-      try {
-        const res = await api.post(`/templates/${template.id}/preview`, {
-          name: 'David Cohen',
-        });
-        setPreviewUrl(res.data.imageUrl || res.data.url || '');
-      } catch {
-        setError('Failed to generate preview');
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchPreview();
+    setPreviewUrl(`/api/templates/${template.id}/preview-image?name=${encodeURIComponent('דוד כהן')}&t=${Date.now()}`);
+    setLoading(false);
   }, [template.id]);
 
   return (
@@ -404,12 +412,455 @@ function PreviewModal({ template, onClose }) {
   );
 }
 
+function CanvaDesignConfig({ design, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: design.title || design.name || '',
+    eventType: 'shabbat',
+    placeholderField: '{NAME}',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post(`/templates/canva/designs/${design.id}/use`, {
+        name: form.name,
+        eventType: form.eventType,
+        placeholderField: form.placeholderField,
+      });
+      toast.success('Canva design saved as template');
+      onSave();
+    } catch {
+      toast.error('Failed to save Canva design as template');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex items-center justify-center z-10 p-4">
+      <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-md p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-sm font-bold text-gray-800">
+            Use as Template
+          </h4>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-100 rounded"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Thumbnail preview */}
+        {design.thumbnail && (
+          <div className="mb-4 rounded-lg overflow-hidden border border-gray-100">
+            <img
+              src={typeof design.thumbnail === 'string' ? design.thumbnail : design.thumbnail?.url}
+              alt={design.title}
+              className="w-full h-32 object-cover"
+            />
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Name
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, name: e.target.value }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Event Type
+            </label>
+            <select
+              value={form.eventType}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, eventType: e.target.value }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+            >
+              {CANVA_EVENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {formatEventType(t)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Placeholder Field
+            </label>
+            <input
+              type="text"
+              value={form.placeholderField}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  placeholderField: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-whatsapp outline-none text-sm"
+              placeholder="{NAME}"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !form.name.trim()}
+            className="px-3 py-1.5 bg-whatsapp text-white rounded-lg hover:bg-whatsapp-dark disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin" />
+                Saving...
+              </span>
+            ) : (
+              'Save'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CanvaBrowserModal({ onClose, onDesignSaved }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [designs, setDesigns] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [continuation, setContinuation] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [configDesign, setConfigDesign] = useState(null);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  const handleImportUrl = async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+    const designMatch = url.match(/design\/([A-Za-z0-9_-]+)/);
+    const brandMatch = url.match(/brand-templates\/([A-Za-z0-9_-]+)/);
+    const match = designMatch || brandMatch;
+    if (!match) {
+      toast.error('Invalid Canva URL');
+      return;
+    }
+    const isBrandTemplate = !!brandMatch;
+    setImporting(true);
+    try {
+      const res = await api.post(`/templates/canva/designs/${match[1]}/use`, {
+        eventType: 'shabbat',
+        placeholderField: '{NAME}',
+        brandTemplateId: isBrandTemplate ? match[1] : undefined,
+      });
+      toast.success(`Template "${res.data.template?.name || 'Imported'}" created!`);
+      setImportUrl('');
+      onDesignSaved();
+      onClose();
+    } catch (err) {
+      toast.error('Import failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const searchDesigns = async (query, continueToken = null) => {
+    if (!continueToken) {
+      setLoading(true);
+      setDesigns([]);
+      setError('');
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set('q', query.trim());
+      if (continueToken) params.set('continuation', continueToken);
+
+      const res = await api.get(
+        `/templates/canva/designs${params.toString() ? `?${params}` : ''}`
+      );
+      const newDesigns = res.data.designs || [];
+      const newContinuation = res.data.continuation || null;
+
+      if (continueToken) {
+        setDesigns((prev) => [...prev, ...newDesigns]);
+      } else {
+        setDesigns(newDesigns);
+      }
+      setContinuation(newContinuation);
+    } catch {
+      setError('Failed to fetch Canva designs');
+      toast.error('Failed to fetch Canva designs');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    searchDesigns(searchQuery);
+  };
+
+  const handleLoadMore = () => {
+    if (continuation) {
+      searchDesigns(searchQuery, continuation);
+    }
+  };
+
+  const handleDesignSaved = () => {
+    setConfigDesign(null);
+    onDesignSaved();
+    onClose();
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      return new Date(dateStr).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Load initial designs on mount
+  useEffect(() => {
+    searchDesigns('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40" style={{ left: '256px' }}>
+      <div className="bg-gray-50 w-full h-full flex flex-col relative">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <Palette size={20} className="text-purple-600" />
+            <h3 className="text-lg font-bold text-gray-800">
+              Browse Canva Designs
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="bg-white border-b border-gray-100 px-6 py-3 shrink-0 space-y-3">
+          <form onSubmit={handleSearch} className="flex gap-3 max-w-3xl">
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search your Canva designs..."
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2 transition-colors"
+            >
+              {loading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Search size={14} />
+              )}
+              Search
+            </button>
+            <a
+              href={`https://www.canva.com/search/templates?q=${encodeURIComponent(searchQuery || 'שבת שלום ברכה')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap"
+            >
+              <ExternalLink size={14} />
+              Search Canva Templates
+            </a>
+          </form>
+          <div className="flex gap-3 max-w-3xl items-center">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                placeholder="Paste Canva design URL to import..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-400 outline-none text-sm"
+              />
+            </div>
+            <button
+              onClick={handleImportUrl}
+              disabled={!importUrl.trim() || importing}
+              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap"
+            >
+              {importing ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              Import
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 max-w-3xl">
+            Search shows your designs. To import a new template: open <a href={`https://www.canva.com/search/templates?q=${encodeURIComponent(searchQuery || 'שבת שלום')}`} target="_blank" rel="noopener noreferrer" className="text-teal-500 underline">Canva Templates</a>, find one you like, click "Customize", then paste the URL here.
+          </p>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 relative">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 size={32} className="animate-spin text-purple-500 mb-3" />
+              <p className="text-gray-500 text-sm">Loading Canva designs...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <p className="text-red-500 text-sm mb-3">{error}</p>
+              <button
+                onClick={() => searchDesigns(searchQuery)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
+              >
+                Retry
+              </button>
+            </div>
+          ) : designs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <Palette size={48} className="mb-3" />
+              <p className="text-sm">
+                No designs found. Try a different search term.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {designs.map((design) => (
+                  <div
+                    key={design.id}
+                    className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group"
+                  >
+                    {/* Thumbnail — click to open in Canva */}
+                    <a
+                      href={design.editUrl || design.viewUrl || `https://www.canva.com/design/${design.id}/edit`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block aspect-square bg-gray-100 flex items-center justify-center overflow-hidden relative cursor-pointer"
+                    >
+                      {design.thumbnail ? (
+                        <img
+                          src={typeof design.thumbnail === 'string' ? design.thumbnail : design.thumbnail?.url}
+                          alt={design.title || 'Canva design'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <Palette size={32} className="text-gray-300" />
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <ExternalLink size={24} className="text-white" />
+                      </div>
+                    </a>
+
+                    {/* Info */}
+                    <div className="p-3">
+                      <h4 className="text-xs font-semibold text-gray-800 line-clamp-2 mb-1">
+                        {design.title || 'Untitled'}
+                      </h4>
+                      {(design.updatedAt || design.updated_at) && (
+                        <p className="text-[10px] text-gray-400 mb-2">
+                          {formatDate(design.updatedAt || design.updated_at)}
+                        </p>
+                      )}
+                      <button
+                        onClick={() => setConfigDesign(design)}
+                        className="w-full px-2 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-100 transition-colors"
+                      >
+                        Use as Template
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Load More */}
+              {continuation && (
+                <div className="flex justify-center mt-6">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm font-medium shadow-sm transition-colors"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={14} />
+                        Load More
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Config overlay */}
+          {configDesign && (
+            <CanvaDesignConfig
+              design={configDesign}
+              onClose={() => setConfigDesign(null)}
+              onSave={handleDesignSaved}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editTemplate, setEditTemplate] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [showCanvaBrowser, setShowCanvaBrowser] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -465,6 +916,35 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleImportUrl = async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+
+    const designMatch = url.match(/design\/([A-Za-z0-9_-]+)/);
+    const brandMatch = url.match(/brand-templates\/([A-Za-z0-9_-]+)/);
+    const match = designMatch || brandMatch;
+    if (!match) {
+      toast.error('Invalid Canva URL');
+      return;
+    }
+
+    const designId = match[1];
+    setImporting(true);
+    try {
+      const res = await api.post(`/templates/canva/designs/${designId}/use`, {
+        eventType: 'shabbat',
+        placeholderField: '{NAME}',
+      });
+      toast.success(`Template "${res.data.template?.name || 'Imported'}" created!`);
+      setImportUrl('');
+      fetchTemplates();
+    } catch (err) {
+      toast.error('Import failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleToggleStatus = async (template) => {
     const newStatus = template.status === 'active' ? 'draft' : 'active';
     try {
@@ -486,16 +966,25 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Templates</h2>
-        <button
-          onClick={() => {
-            setEditTemplate(null);
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-whatsapp text-white rounded-lg hover:bg-whatsapp-dark transition-colors text-sm font-medium"
-        >
-          <Plus size={16} />
-          Add Template
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCanvaBrowser(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+          >
+            <Palette size={16} />
+            Browse Canva
+          </button>
+          <button
+            onClick={() => {
+              setEditTemplate(null);
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-whatsapp text-white rounded-lg hover:bg-whatsapp-dark transition-colors text-sm font-medium"
+          >
+            <Plus size={16} />
+            Add Template
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -557,12 +1046,18 @@ export default function TemplatesPage() {
             >
               {/* Image */}
               <div className="h-36 bg-gray-50 flex items-center justify-center relative group">
-                {t.imageUrl || t.localFallbackPath ? (
+                {(t.localFallbackPath || t.local_fallback_path || t.svgTemplatePath || t.svg_template_path) ? (
                   <img
-                    src={t.imageUrl || t.localFallbackPath}
+                    src={`/api/templates/${t.id}/preview-image?name=${encodeURIComponent('ישראל')}`}
                     alt={t.name}
                     className="h-full w-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none'; }}
                   />
+                ) : t.canvaDesignId || t.canva_design_id ? (
+                  <div className="text-center p-2">
+                    <Palette size={28} className="text-purple-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-400">Canva design</p>
+                  </div>
                 ) : (
                   <Image size={36} className="text-gray-200" />
                 )}
@@ -581,9 +1076,24 @@ export default function TemplatesPage() {
               {/* Content */}
               <div className="p-4">
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-800 text-sm">
-                    {t.name}
-                  </h3>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className="font-semibold text-gray-800 text-sm truncate">
+                      {t.name}
+                    </h3>
+                    {t.canvaDesignId && (
+                      <a
+                        href={`https://www.canva.com/design/${t.canvaDesignId}/edit`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-semibold hover:bg-purple-100 transition-colors"
+                        title="Edit in Canva"
+                      >
+                        <Palette size={9} />
+                        Canva
+                        <ExternalLink size={8} />
+                      </a>
+                    )}
+                  </div>
                   <div className="flex gap-0.5 shrink-0 ml-2">
                     <button
                       onClick={() => {
@@ -683,6 +1193,13 @@ export default function TemplatesPage() {
         <PreviewModal
           template={previewTemplate}
           onClose={() => setPreviewTemplate(null)}
+        />
+      )}
+
+      {showCanvaBrowser && (
+        <CanvaBrowserModal
+          onClose={() => setShowCanvaBrowser(false)}
+          onDesignSaved={fetchTemplates}
         />
       )}
     </div>

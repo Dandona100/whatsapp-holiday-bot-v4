@@ -12,35 +12,34 @@ import ApprovalsPage from './pages/ApprovalsPage';
 import SendNowPage from './pages/SendNowPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import GuidePage from './pages/GuidePage';
 import useAuthStore from './store/useAuthStore';
 
 export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-
-  if (!isAuthenticated) {
-    return (
-      <>
-        <Toaster position="top-right" />
-        <LoginPage />
-      </>
-    );
-  }
 
   return (
     <>
       <Toaster position="top-right" />
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/whatsapp" element={<WhatsAppPage />} />
-          <Route path="/contacts" element={<ContactsPage />} />
-          <Route path="/groups" element={<GroupsPage />} />
-          <Route path="/templates" element={<TemplatesPage />} />
-          <Route path="/schedules" element={<SchedulesPage />} />
-          <Route path="/approvals" element={<ApprovalsPage />} />
-          <Route path="/send" element={<SendNowPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/guide" element={<GuidePage />} />
+          {!isAuthenticated ? (
+            <Route path="*" element={<LoginPage />} />
+          ) : (
+            <>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/whatsapp" element={<WhatsAppPage />} />
+              <Route path="/contacts" element={<ContactsPage />} />
+              <Route path="/groups" element={<GroupsPage />} />
+              <Route path="/templates" element={<TemplatesPage />} />
+              <Route path="/schedules" element={<SchedulesPage />} />
+              <Route path="/approvals" element={<ApprovalsPage />} />
+              <Route path="/send" element={<SendNowPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </>
+          )}
         </Route>
       </Routes>
     </>

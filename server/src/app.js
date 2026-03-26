@@ -40,6 +40,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(apiLimiter);
 
+// Serve uploaded template images
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
@@ -65,8 +68,12 @@ const PORT = process.env.PORT || 3001;
 
 database.connect()
   .then(async () => {
-    // Initialize Canva adapter and make it available to routes
+    // Initialize Canva adapter and load tokens from DB
     const canvaAdapter = createCanvaAdapter();
+    const apiProvider = canvaAdapter.providers.find((p) => p.name === 'api');
+    if (apiProvider && apiProvider.loadTokensFromDB) {
+      await apiProvider.loadTokensFromDB();
+    }
     app.set('canvaAdapter', canvaAdapter);
 
     server.listen(PORT, () => {

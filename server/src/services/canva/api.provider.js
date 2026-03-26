@@ -18,6 +18,7 @@ class ApiProvider {
     this.clientSecret = canvaConfig.oauth.clientSecret;
     this.accessToken = null;
     this.refreshTokenValue = null;
+    this._initialized = false;
   }
 
   get name() {
@@ -25,7 +26,22 @@ class ApiProvider {
   }
 
   isAvailable() {
-    return Boolean(this.clientId && (this.accessToken || this.refreshTokenValue));
+    return Boolean(this.clientId && (this.accessToken || this.refreshTokenValue || this._initialized === false));
+  }
+
+  async loadTokensFromDB() {
+    try {
+      const settings = await db('settings').where({ key_: 'canva_oauth' }).first();
+      if (settings) {
+        const data = typeof settings.data === 'string' ? JSON.parse(settings.data) : settings.data;
+        this.accessToken = data.access_token || null;
+        this.refreshTokenValue = data.refresh_token || null;
+      }
+      this._initialized = true;
+    } catch (err) {
+      logger.warn(`Failed to load Canva tokens from DB: ${err.message}`);
+      this._initialized = true;
+    }
   }
 
   async personalize(templateId, nameOnDesign, eventType) {
@@ -38,44 +54,61 @@ class ApiProvider {
 
     const brandTemplateId = template.canva_brand_template_id;
     if (!brandTemplateId) {
-      throw new Error(`Template ${templateId} has no canva_brand_template_id`);
+      throw new Error(`Template ${templateId} has no brand template ID — publish it as brand template in Canva first`);
     }
 
-    // Step 1: Create autofill job
+    const placeholder = template.placeholder_field || '{NAME}';
+    const fieldName = placeholder.replace(/[{}]/g, '');
+
+    // Step 1: Create autofill job — replaces {NAME} with actual name
+    logger.info(`Canva Autofill: replacing "${fieldName}" with "${nameOnDesign}" in brand template ${brandTemplateId}`);
     const autofillResult = await this._request('POST', '/autofills', {
       brand_template_id: brandTemplateId,
       data: {
-        NAME: { type: 'text', text: nameOnDesign },
+        [fieldName]: { type: 'text', text: nameOnDesign },
       },
     });
 
-    const jobId = autofillResult.job.id;
-    logger.info(`Canva API autofill job created: ${jobId} for "${nameOnDesign}"`);
+    const jobId = autofillResult.job?.id;
+    if (!jobId) {
+      throw new Error('Failed to create Canva autofill job');
+    }
+    logger.info(`Canva autofill job created: ${jobId}`);
 
     // Step 2: Poll autofill job until complete
     const autofillJob = await this._pollJob(
       `/autofills/${jobId}`,
-      (result) => result.job.status
+      (result) => result.job?.status
     );
 
-    const newDesignId = autofillJob.job.result.design.id;
-    logger.info(`Canva API autofill complete, design: ${newDesignId}`);
+    const newDesignId = autofillJob.job?.result?.design?.id;
+    if (!newDesignId) {
+      throw new Error('Canva autofill completed but no design ID returned');
+    }
+    logger.info(`Canva autofill complete, new design: ${newDesignId}`);
 
-    // Step 3: Export design as PNG
-    const exportResult = await this._request('POST', `/designs/${newDesignId}/exports`, {
-      type: template.export_format || 'png',
+    // Step 3: Export the personalized design as PNG
+    const exportResult = await this._request('POST', '/exports', {
+      design_id: newDesignId,
+      format: { type: template.export_format || 'png' },
     });
 
-    const exportId = exportResult.job.id;
-    logger.info(`Canva API export job created: ${exportId}`);
+    const exportId = exportResult.job?.id;
+    if (!exportId) {
+      throw new Error('Failed to create Canva export job');
+    }
+    logger.info(`Canva export job created: ${exportId}`);
 
     // Step 4: Poll export job until ready
     const exportJob = await this._pollJob(
       `/exports/${exportId}`,
-      (result) => result.job.status
+      (result) => result.job?.status
     );
 
-    const downloadUrl = exportJob.job.result.urls[0];
+    const downloadUrl = exportJob.job?.result?.urls?.[0];
+    if (!downloadUrl) {
+      throw new Error('Canva export completed but no download URL');
+    }
 
     // Step 5: Download and optimize image
     fs.mkdirSync(TEMP_DIR, { recursive: true });
@@ -171,15 +204,35 @@ class ApiProvider {
   }
 
   async _request(method, urlPath, body) {
-    return this._rawRequest(method, urlPath, body ? JSON.stringify(body) : null, {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.accessToken}`,
-    });
+    try {
+      return await this._rawRequest(method, urlPath, body ? JSON.stringify(body) : null, {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.accessToken}`,
+      });
+    } catch (err) {
+      if (err.message.includes('Unauthorized') && this.refreshTokenValue) {
+        logger.info('Canva token expired, refreshing...');
+        await this.refreshToken();
+        return this._rawRequest(method, urlPath, body ? JSON.stringify(body) : null, {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.accessToken}`,
+        });
+      }
+      throw err;
+    }
   }
 
   _rawRequest(method, urlPath, bodyStr, headers) {
     return new Promise((resolve, reject) => {
-      const url = new URL(urlPath, this.baseUrl);
+      let fullUrl;
+      if (urlPath.startsWith('http')) {
+        fullUrl = urlPath;
+      } else if (urlPath.startsWith('/')) {
+        fullUrl = this.baseUrl + urlPath;
+      } else {
+        fullUrl = this.baseUrl + '/' + urlPath;
+      }
+      const url = new URL(fullUrl);
       const transport = url.protocol === 'https:' ? https : http;
 
       const options = {

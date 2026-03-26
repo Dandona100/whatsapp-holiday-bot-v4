@@ -11,6 +11,7 @@ import {
   Send,
   BarChart3,
   Settings,
+  HelpCircle,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/approvals', icon: CheckCircle, label: 'Approvals', showBadge: true },
   { to: '/send', icon: Send, label: 'Send Now' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
+  { to: '/guide', icon: HelpCircle, label: 'Guide' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

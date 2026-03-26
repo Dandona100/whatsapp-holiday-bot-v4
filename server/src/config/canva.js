@@ -9,7 +9,7 @@ module.exports = {
     clientId: process.env.CANVA_CLIENT_ID,
     clientSecret: process.env.CANVA_CLIENT_SECRET,
     redirectUri: process.env.CANVA_REDIRECT_URI,
-    scopes: (process.env.CANVA_SCOPES || 'design:content:read design:content:write asset:read').split(' '),
+    scopes: (process.env.CANVA_SCOPES || 'design:content:read design:content:write design:meta:read asset:read asset:write brandtemplate:content:read brandtemplate:meta:read').split(' '),
   },
   providerPriority: ['mcp', 'api', 'local'],
 };

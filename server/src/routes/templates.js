@@ -26,11 +26,11 @@ const upload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = /\.(png|jpg|jpeg|webp)$/i;
+    const allowed = /\.(png|jpg|jpeg|webp|svg)$/i;
     if (allowed.test(path.extname(file.originalname))) {
       cb(null, true);
     } else {
-      cb(new Error('Only PNG, JPG, and WebP images are allowed'));
+      cb(new Error('Only PNG, JPG, WebP, and SVG files are allowed'));
     }
   },
 });
@@ -125,6 +125,30 @@ router.get('/canva/auth/callback', async (req, res) => {
   }
 });
 
+// GET /:id/preview-image — serve preview (before auth so <img> tags work)
+router.get('/:id/preview-image', async (req, res) => {
+  const id = Number(req.params.id);
+  const name = req.query.name || 'Israel Israeli';
+  const canvaAdapter = req.app.get('canvaAdapter');
+  if (!canvaAdapter) return res.status(503).json({ error: 'Canva adapter not initialized' });
+
+  try {
+    const result = await canvaAdapter.previewTemplate(id, name);
+    if (result.imagePath && fs.existsSync(result.imagePath)) {
+      const ext = path.extname(result.imagePath).toLowerCase();
+      const mime = ext === '.webp' ? 'image/webp' : ext === '.png' ? 'image/png' : 'image/jpeg';
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.sendFile(path.resolve(result.imagePath));
+    } else {
+      res.status(404).json({ error: 'Preview image not found' });
+    }
+  } catch (err) {
+    logger.error(`Preview image failed: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.use(authenticate);
 
 // --- Validation Schemas ---
@@ -140,6 +164,7 @@ const createTemplateSchema = Joi.object({
   exportWidth: Joi.number().integer().positive().optional(),
   exportHeight: Joi.number().integer().positive().optional(),
   localFallbackPath: Joi.string().allow('').optional(),
+  svgTemplatePath: Joi.string().allow('').optional(),
   fontFamily: Joi.string().optional(),
   fontSize: Joi.number().integer().positive().optional(),
   fontColor: Joi.string().optional(),
@@ -167,6 +192,7 @@ function mapTemplateBody(body) {
   if (body.exportWidth !== undefined) mapped.export_width = body.exportWidth;
   if (body.exportHeight !== undefined) mapped.export_height = body.exportHeight;
   if (body.localFallbackPath !== undefined) mapped.local_fallback_path = body.localFallbackPath;
+  if (body.svgTemplatePath !== undefined) mapped.svg_template_path = body.svgTemplatePath;
   if (body.fontFamily !== undefined) mapped.font_family = body.fontFamily;
   if (body.fontSize !== undefined) mapped.font_size = body.fontSize;
   if (body.fontColor !== undefined) mapped.font_color = body.fontColor;
@@ -190,6 +216,7 @@ function formatTemplate(row) {
     exportWidth: row.export_width,
     exportHeight: row.export_height,
     localFallbackPath: row.local_fallback_path,
+    svgTemplatePath: row.svg_template_path,
     fontFamily: row.font_family,
     fontSize: row.font_size,
     fontColor: row.font_color,
@@ -231,6 +258,21 @@ router.get('/canva/auth', (req, res) => {
   res.json({ authUrl });
 });
 
+// POST /canva/disconnect — Remove Canva OAuth token
+router.post('/canva/disconnect', async (req, res) => {
+  await db('settings').where({ key_: 'canva_oauth' }).del();
+  const canvaAdapter = req.app.get('canvaAdapter');
+  if (canvaAdapter) {
+    const apiProvider = canvaAdapter.providers.find((p) => p.name === 'api');
+    if (apiProvider) {
+      apiProvider.accessToken = null;
+      apiProvider.refreshTokenValue = null;
+    }
+  }
+  logger.info('Canva disconnected');
+  res.json({ message: 'Canva disconnected' });
+});
+
 // GET /canva/status — Canva adapter provider status (must be before /:id routes)
 router.get('/canva/status', (req, res) => {
   const canvaAdapter = req.app.get('canvaAdapter');
@@ -238,6 +280,192 @@ router.get('/canva/status', (req, res) => {
     return res.status(503).json({ error: 'Canva adapter not initialized' });
   }
   res.json({ providers: canvaAdapter.getStatus() });
+});
+
+// GET /canva/designs — Search/browse Canva designs
+router.get('/canva/designs', async (req, res, next) => {
+  try {
+    const canvaAdapter = req.app.get('canvaAdapter');
+    const apiProvider = canvaAdapter?.providers?.find((p) => p.name === 'api');
+    if (!apiProvider || !apiProvider.isAvailable()) {
+      return res.status(400).json({ error: 'Canva API not connected' });
+    }
+
+    await apiProvider._ensureToken();
+    const query = req.query.q || '';
+    const continuation = req.query.continuation || '';
+
+    let url = '/designs?ownership=owned&sort_by=modified_descending';
+    if (query) url += `&query=${encodeURIComponent(query)}`;
+    if (continuation) url += `&continuation=${encodeURIComponent(continuation)}`;
+
+    const result = await apiProvider._request('GET', url);
+    res.json({
+      designs: (result.items || []).map((d) => ({
+        id: d.id,
+        title: d.title,
+        thumbnail: d.thumbnail?.url || null,
+        editUrl: d.urls?.edit_url,
+        viewUrl: d.urls?.view_url,
+        createdAt: d.created_at,
+        updatedAt: d.updated_at,
+        pageCount: d.page_count,
+      })),
+      continuation: result.continuation || null,
+    });
+  } catch (err) {
+    logger.error(`Canva designs search failed: ${err.message}`);
+    next(err);
+  }
+});
+
+// GET /canva/designs/:designId — Get single design details
+router.get('/canva/designs/:designId', async (req, res, next) => {
+  try {
+    const canvaAdapter = req.app.get('canvaAdapter');
+    const apiProvider = canvaAdapter?.providers?.find((p) => p.name === 'api');
+    if (!apiProvider || !apiProvider.isAvailable()) {
+      return res.status(400).json({ error: 'Canva API not connected' });
+    }
+
+    await apiProvider._ensureToken();
+    const result = await apiProvider._request('GET', `/designs/${req.params.designId}`);
+    const d = result.design || result;
+    res.json({
+      id: d.id,
+      title: d.title,
+      thumbnail: d.thumbnail?.url || null,
+      editUrl: d.urls?.edit_url,
+      viewUrl: d.urls?.view_url,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+      pageCount: d.page_count,
+    });
+  } catch (err) {
+    logger.error(`Canva design fetch failed: ${err.message}`);
+    next(err);
+  }
+});
+
+// POST /canva/designs/:designId/use — Use a Canva design or brand template as template
+router.post('/canva/designs/:designId/use', async (req, res, next) => {
+  try {
+    const canvaAdapter = req.app.get('canvaAdapter');
+    const apiProvider = canvaAdapter?.providers?.find((p) => p.name === 'api');
+    if (!apiProvider || !apiProvider.isAvailable()) {
+      return res.status(400).json({ error: 'Canva API not connected' });
+    }
+
+    await apiProvider._ensureToken();
+    const paramId = req.params.designId;
+    const { name, eventType, placeholderField, brandTemplateId } = req.body;
+    const isBrandTemplate = !!brandTemplateId || !paramId.startsWith('DA');
+
+    let d = { title: name || 'Canva Template' };
+    let designId = paramId;
+    let btId = brandTemplateId || paramId;
+
+    // Try to get details
+    if (isBrandTemplate) {
+      try {
+        const btResult = await apiProvider._request('GET', `/brand-templates/${btId}`);
+        d = btResult.brand_template || btResult;
+        d.title = d.title || name || 'Brand Template';
+      } catch {
+        d.title = name || 'Brand Template';
+      }
+    } else {
+      const result = await apiProvider._request('GET', `/designs/${designId}`);
+      d = result.design || result;
+    }
+
+    // Export: for brand templates, use autofill with sample name first
+    let exportId = null;
+    if (isBrandTemplate) {
+      try {
+        const autofillResult = await apiProvider._request('POST', '/autofills', {
+          brand_template_id: btId,
+          data: { [placeholderField ? placeholderField.replace(/[{}]/g, '') : 'NAME']: { type: 'text', text: 'Sample' } },
+        });
+        const jobId = autofillResult.job?.id;
+        if (jobId) {
+          for (let i = 0; i < 30; i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const poll = await apiProvider._request('GET', `/autofills/${jobId}`);
+            if (poll.job?.status === 'success') {
+              designId = poll.job.result?.design?.id;
+              break;
+            }
+            if (poll.job?.status === 'failed') break;
+          }
+        }
+      } catch (err) {
+        logger.warn(`Autofill preview failed: ${err.message}`);
+      }
+    }
+
+    if (designId) {
+      const exportResult = await apiProvider._request('POST', '/exports', {
+        design_id: designId,
+        format: { type: 'png' },
+      });
+      exportId = exportResult.job?.id;
+    }
+
+    let downloadUrl = null;
+    if (exportId) {
+      // Poll for export
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const pollResult = await apiProvider._request('GET', `/exports/${exportId}`);
+        if (pollResult.job?.status === 'success') {
+          downloadUrl = pollResult.job.result?.urls?.[0];
+          break;
+        }
+        if (pollResult.job?.status === 'failed') break;
+      }
+    }
+
+    // Download and save as local fallback
+    let localPath = null;
+    if (downloadUrl) {
+      const fileName = `canva_${designId}_${Date.now()}.png`;
+      localPath = path.join(UPLOADS_DIR, fileName);
+      await new Promise((resolve, reject) => {
+        const httpsModule = require('https');
+        const file = fs.createWriteStream(localPath);
+        httpsModule.get(downloadUrl, (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            httpsModule.get(response.headers.location, (r2) => { r2.pipe(file); file.on('finish', () => { file.close(); resolve(); }); }).on('error', reject);
+          } else {
+            response.pipe(file);
+            file.on('finish', () => { file.close(); resolve(); });
+          }
+        }).on('error', reject);
+      });
+    }
+
+    // Create template in DB
+    const [templateId] = await db('templates').insert({
+      name: name || d.title || `Canva Template`,
+      event_type: eventType || 'shabbat',
+      canva_design_id: isBrandTemplate ? null : designId,
+      canva_brand_template_id: isBrandTemplate ? btId : null,
+      placeholder_field: placeholderField || '{NAME}',
+      preview_url: d.thumbnail?.url || null,
+      local_fallback_path: localPath,
+      export_format: 'png',
+      export_width: 1080,
+      export_height: 1080,
+      active: true,
+    });
+
+    const template = await db('templates').where({ id: templateId }).first();
+    res.json({ template: formatTemplate(template) });
+  } catch (err) {
+    logger.error(`Canva design use failed: ${err.message}`);
+    next(err);
+  }
 });
 
 // POST /upload — upload a local fallback base image for a template (must be before /:id routes)
@@ -250,6 +478,8 @@ router.post('/upload', upload.single('image'), async (req, res, next) => {
     const templateId = req.body.templateId ? Number(req.body.templateId) : null;
     const filePath = req.file.path;
 
+    const isSvg = /\.svg$/i.test(req.file.originalname);
+
     if (templateId) {
       const template = await db('templates').where({ id: templateId }).first();
       if (!template) {
@@ -257,18 +487,22 @@ router.post('/upload', upload.single('image'), async (req, res, next) => {
         return res.status(404).json({ error: 'Template not found' });
       }
 
-      await db('templates').where({ id: templateId }).update({
-        local_fallback_path: filePath,
-        updated_at: new Date(),
-      });
+      const updateFields = { updated_at: new Date() };
+      if (isSvg) {
+        updateFields.svg_template_path = filePath;
+      } else {
+        updateFields.local_fallback_path = filePath;
+      }
+
+      await db('templates').where({ id: templateId }).update(updateFields);
 
       const updated = await db('templates').where({ id: templateId }).first();
-      logger.info(`Uploaded fallback image for template ${templateId}: ${filePath}`);
+      logger.info(`Uploaded ${isSvg ? 'SVG template' : 'fallback image'} for template ${templateId}: ${filePath}`);
       return res.json({ template: formatTemplate(updated), filePath });
     }
 
-    logger.info(`Uploaded template image: ${filePath}`);
-    res.json({ filePath });
+    logger.info(`Uploaded template ${isSvg ? 'SVG' : 'image'}: ${filePath}`);
+    res.json({ filePath, type: isSvg ? 'svg' : 'image' });
   } catch (err) {
     next(err);
   }
@@ -331,6 +565,8 @@ router.delete('/:id', async (req, res, next) => {
     next(err);
   }
 });
+
+// Moved preview-image to before auth middleware
 
 // POST /:id/preview — generate preview using Canva adapter
 router.post('/:id/preview', async (req, res, next) => {

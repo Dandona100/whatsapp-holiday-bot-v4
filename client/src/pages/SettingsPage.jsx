@@ -110,7 +110,6 @@ export default function SettingsPage() {
             adminPhone: '',
             cooldownHours: 24,
             approvalTimeout: 240,
-            activeWindow: { start: '07:00', end: '22:00' },
             autoAddContacts: true,
             notifyVia: ['whatsapp', 'websocket'],
             ...s.autoReply,
@@ -152,6 +151,16 @@ export default function SettingsPage() {
       window.history.replaceState({}, '', '/settings');
     }
   }, []);
+
+  const handleDisconnectCanva = async () => {
+    try {
+      await api.post('/templates/canva/disconnect');
+      setCanvaConnected(false);
+      toast.success('Canva disconnected');
+    } catch (err) {
+      toast.error('Failed to disconnect Canva');
+    }
+  };
 
   const handleConnectCanva = async () => {
     try {
@@ -404,14 +413,22 @@ export default function SettingsPage() {
                 </span>
               )}
             </div>
-            {!canvaConnected && (
+            <div className="flex gap-2">
+              {canvaConnected && (
+                <button
+                  onClick={handleDisconnectCanva}
+                  className="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 text-sm"
+                >
+                  Disconnect
+                </button>
+              )}
               <button
                 onClick={handleConnectCanva}
                 className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
               >
-                Connect Canva
+                {canvaConnected ? 'Reconnect' : 'Connect Canva'}
               </button>
-            )}
+            </div>
           </div>
           {canvaProviders.length > 0 && (
             <div className="flex gap-3">

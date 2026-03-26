@@ -1,11 +1,11 @@
 const logger = require('../../utils/logger');
-const McpProvider = require('./mcp.provider');
+const ClaudeMcpProvider = require('./claude-mcp.provider');
 const ApiProvider = require('./api.provider');
 const LocalProvider = require('./local.provider');
 
 class CanvaAdapter {
-  constructor(mcpProvider, apiProvider, localProvider) {
-    this.providers = [mcpProvider, apiProvider, localProvider].filter(Boolean);
+  constructor(...providers) {
+    this.providers = providers.filter(Boolean);
   }
 
   async personalize(templateId, nameOnDesign, eventType) {
@@ -52,11 +52,12 @@ class CanvaAdapter {
 }
 
 function createCanvaAdapter() {
-  const mcpProvider = new McpProvider();
+  const claudeMcpProvider = new ClaudeMcpProvider();
   const apiProvider = new ApiProvider();
   const localProvider = new LocalProvider();
 
-  const adapter = new CanvaAdapter(mcpProvider, apiProvider, localProvider);
+  // Priority: Claude MCP (real text replacement) → API (export only) → Local (Sharp overlay)
+  const adapter = new CanvaAdapter(claudeMcpProvider, apiProvider, localProvider);
   logger.info('Canva adapter initialized with providers: ' +
     adapter.providers.map((p) => `${p.name}(${p.isAvailable() ? 'available' : 'unavailable'})`).join(', '));
 

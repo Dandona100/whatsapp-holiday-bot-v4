@@ -77,11 +77,23 @@ async function initTables() {
       t.string('font_color', 20).defaultTo('#FFFFFF');
       t.integer('name_x').defaultTo(540);
       t.integer('name_y').defaultTo(900);
+      t.text('svg_template_path');
       t.boolean('active').defaultTo(true);
       t.integer('usage_count').defaultTo(0);
       t.datetime('last_used');
       t.timestamps(true, true);
     });
+  }
+
+  // Add svg_template_path column if missing (existing databases)
+  if (await db.schema.hasTable('templates')) {
+    const hasSvgCol = await db.schema.hasColumn('templates', 'svg_template_path');
+    if (!hasSvgCol) {
+      await db.schema.alterTable('templates', (t) => {
+        t.text('svg_template_path').after('local_fallback_path');
+      });
+      console.log('[MySQL] Added svg_template_path column to templates');
+    }
   }
 
   // groups
